@@ -191,7 +191,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (convertedBlobs.length === 1) {
             // SINGLE FILE DOWNLOAD logic with File API
             const { blob, newFileName } = convertedBlobs[0];
+            let extension = newFileName.split('.').pop();
 
+            try {
+                if (window.showSaveFilePicker) {
+                    const handle = await window.showSaveFilePicker({
+                        suggestedName: newFileName,
+                        types: [{
+                            description: 'Image file',
+                            accept: { [formatSelect.value]: [`.${extension}`] },
+                        }],
+                    });
+                    const writable = await handle.createWritable();
+                    await writable.write(blob);
+                    await writable.close();
+                    return;
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') return;
+                console.error(err);
+            }
+
+            // Fallback
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -204,8 +225,6 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(() => {
                 URL.revokeObjectURL(url);
             }, 1000);
-
-            alert(`Yeay! ${newFileName} berhasil diproses dan diunduh!`);
         } else {
             // MULTIPLE FILES DOWNLOAD logic via JSZip
             downloadBtn.classList.add('loading');
@@ -221,6 +240,33 @@ document.addEventListener('DOMContentLoaded', () => {
                     const zipBlob = await zip.generateAsync({ type: 'blob' });
                     const zipName = 'Go_Converter_Images.zip';
 
+                    try {
+                        if (window.showSaveFilePicker) {
+                            const handle = await window.showSaveFilePicker({
+                                suggestedName: zipName,
+                                types: [{
+                                    description: 'ZIP Archive',
+                                    accept: { 'application/zip': ['.zip'] },
+                                }],
+                            });
+                            const writable = await handle.createWritable();
+                            await writable.write(zipBlob);
+                            await writable.close();
+
+                            downloadBtn.classList.remove('loading');
+                            downloadBtn.innerHTML = '<i class="ri-download-2-line"></i> Download ZIP';
+                            return;
+                        }
+                    } catch (err) {
+                        if (err.name === 'AbortError') {
+                            downloadBtn.classList.remove('loading');
+                            downloadBtn.innerHTML = '<i class="ri-download-2-line"></i> Download ZIP';
+                            return;
+                        }
+                        console.error(err);
+                    }
+
+                    // Fallback
                     const url = URL.createObjectURL(zipBlob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -232,8 +278,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     setTimeout(() => {
                         URL.revokeObjectURL(url);
                     }, 1000);
-
-                    alert(`Yeay! ${zipName} berhasil diproses dan diunduh!`);
 
                 } catch (error) {
                     console.error("Error creating ZIP", error);
