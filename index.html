@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Converter | Premium Quality</title>
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Remix Icons for UI icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet"/>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="background-elements">
+        <div class="blob shape-1"></div>
+        <div class="blob shape-2"></div>
+        <div class="blob shape-3"></div>
+    </div>
+
+    <main class="app-container">
+        <header class="app-header">
+            <div class="logo">
+                <i class="ri-image-edit-fill"></i>
+                <h1>Imagy</h1>
+            </div>
+            <p>Seamless, secure browser-based image conversion.</p>
+        </header>
+
+        <section class="glass-panel main-panel">
+            <!-- Upload Area -->
+            <div id="upload-area" class="upload-area">
+                <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp" hidden>
+                <div class="upload-content">
+                    <i class="ri-upload-cloud-2-line upload-icon"></i>
+                    <h2>Drag & Drop your image here</h2>
+                    <p>or</p>
+                    <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+                        Browse Files
+                    </button>
+                    <p class="formats-info">Supports JPG, PNG, WEBP</p>
+                </div>
+            </div>
+
+            <!-- Workspace Area (Hidden by default) -->
+            <div id="workspace" class="workspace hidden">
+                <div class="editor-grid">
+                    <!-- Image Preview -->
+                    <div class="preview-section glass-panel-inner">
+                        <div class="preview-header">
+                            <h3>Preview</h3>
+                            <button id="reset-btn" class="btn btn-icon btn-danger" title="Remove image">
+                                <i class="ri-delete-bin-line"></i>
+                            </button>
+                        </div>
+                        <div class="image-container">
+                            <img id="preview-image" src="" alt="Preview">
+                        </div>
+                        <div class="file-info">
+                            <span id="original-size">Size: 0 KB</span>
+                            <span id="original-dimensions">0 x 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Conversion Controls -->
+                    <div class="controls-section glass-panel-inner">
+                        <h3>Settings</h3>
+                        
+                        <div class="control-group">
+                            <label for="format-select">Convert to:</label>
+                            <div class="custom-select">
+                                <select id="format-select">
+                                    <option value="image/jpeg">JPEG (.jpg)</option>
+                                    <option value="image/png">PNG (.png)</option>
+                                    <option value="image/webp">WEBP (.webp)</option>
+                                </select>
+                                <i class="ri-arrow-down-s-line select-icon"></i>
+                            </div>
+                        </div>
+
+                        <div class="control-group" id="quality-group">
+                            <div class="label-row">
+                                <label for="quality-slider">Quality:</label>
+                                <span id="quality-value">80%</span>
+                            </div>
+                            <input type="range" id="quality-slider" min="10" max="100" value="80" class="slider">
+                            <p class="hint">Higher quality increases file size.</p>
+                        </div>
+
+                        <div class="action-buttons">
+                            <button id="convert-btn" class="btn btn-accent full-width">
+                                <i class="ri-loop-right-line"></i> Convert Image
+                            </button>
+                            <button id="download-btn" class="btn btn-success full-width hidden">
+                                <i class="ri-download-2-line"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <footer>
+            <p>&copy; 2026 Imagy. Created with &hearts; for privacy. All processing is done locally.</p>
+        </footer>
+    </main>
+
+    <script src="script.js"></script>
+</body>
+</html>
