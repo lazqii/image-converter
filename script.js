@@ -197,6 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 await writable.write(convertedBlob);
                 await writable.close();
                 // Jika sukses menyimpan melalui dialog, fungsi selesai
+                alert(`Yeay! Gambar berhasil disimpan sebagai: ${newFileName}`);
                 return;
             }
         } catch (err) {
