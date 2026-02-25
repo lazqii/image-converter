@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('file-input');
     const workspace = document.getElementById('workspace');
-    const previewImage = document.getElementById('preview-image');
+    const previewGallery = document.getElementById('preview-gallery');
     const originalSize = document.getElementById('original-size');
     const originalDimensions = document.getElementById('original-dimensions');
     const resetBtn = document.getElementById('reset-btn');
@@ -17,10 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const downloadBtn = document.getElementById('download-btn');
 
     // State
-    let currentImage = null;
-    let originalFile = null;
-    let convertedBlob = null;
-    let currentObjectUrl = null; // For cleanup
+    let currentFiles = []; // Array of { file, image, originalName }
+    let convertedBlobs = []; // Array of { blob, newFileName }
+    let currentObjectUrls = []; // Array of URLs for cleanup
 
     // Initialization
     function init() {
@@ -41,16 +40,15 @@ document.addEventListener('DOMContentLoaded', () => {
         uploadArea.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadArea.classList.remove('dragover');
-
             if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-                handleFile(e.dataTransfer.files[0]);
+                handleFiles(e.dataTransfer.files);
             }
         });
 
         // File Input
         fileInput.addEventListener('change', (e) => {
             if (e.target.files && e.target.files.length > 0) {
-                handleFile(e.target.files[0]);
+                handleFiles(e.target.files);
             }
         });
 
@@ -73,182 +71,209 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         // Actions
-        convertBtn.addEventListener('click', convertImage);
-        downloadBtn.addEventListener('click', downloadConvertedImage);
+        convertBtn.addEventListener('click', convertImages);
+        downloadBtn.addEventListener('click', downloadConvertedImages);
     }
 
     // Handlers
-    function handleFile(file) {
-        // Validate
-        const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
-        if (!validTypes.includes(file.type)) {
-            alert('Please select a valid image file (JPG, PNG, or WEBP).');
+    function handleFiles(filesList) {
+        const newFiles = Array.from(filesList);
+
+        if (currentFiles.length + newFiles.length > 10) {
+            alert('Maksimal 10 gambar yang dapat diproses sekaligus.');
             return;
         }
 
-        originalFile = file;
+        // Switch active view
+        if (currentFiles.length === 0 && newFiles.length > 0) {
+            uploadArea.classList.add('hidden');
+            workspace.classList.remove('hidden');
+        }
 
-        // Show info
-        originalSize.textContent = `Size: ${formatBytes(file.size)}`;
+        newFiles.forEach(file => {
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            if (!validTypes.includes(file.type)) return;
 
-        // Read image to get dimensions and preview
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                currentImage = img;
-                originalDimensions.textContent = `${img.width} x ${img.height}`;
-                previewImage.src = e.target.result;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const originalName = file.name.substring(0, file.name.lastIndexOf('.')) || 'image';
+                    currentFiles.push({ file, image: img, originalName });
 
-                // Switch view
-                uploadArea.classList.add('hidden');
-                workspace.classList.remove('hidden');
+                    // Render UI thumbnail
+                    const item = document.createElement('div');
+                    item.className = 'preview-item';
+                    item.innerHTML = `
+                        <img src="${e.target.result}" alt="${originalName}">
+                        <div class="file-name">${file.name}</div>
+                    `;
+                    previewGallery.appendChild(item);
+
+                    updateStats();
+                };
+                img.src = e.target.result;
             };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
+            reader.readAsDataURL(file);
+        });
     }
 
-    function convertImage() {
-        if (!currentImage) return;
+    function updateStats() {
+        const totalSize = currentFiles.reduce((acc, obj) => acc + obj.file.size, 0);
+        originalSize.textContent = `Files: ${currentFiles.length}/10`;
+        originalDimensions.textContent = `Total Size: ${formatBytes(totalSize)}`;
+    }
+
+    async function convertImages() {
+        if (currentFiles.length === 0) return;
 
         // UI Feedback
         convertBtn.classList.add('loading');
         convertBtn.innerHTML = '<i class="ri-loader-4-line"></i> Converting...';
 
-        // Use setTimeout to allow UI to update before heavy work
-        setTimeout(() => {
-            const canvas = document.createElement('canvas');
-            canvas.width = currentImage.width;
-            canvas.height = currentImage.height;
+        // Cleanup old conversions
+        convertedBlobs = [];
+        currentObjectUrls.forEach(url => URL.revokeObjectURL(url));
+        currentObjectUrls = [];
 
-            const ctx = canvas.getContext('2d');
-
-            // If converting TO jpeg from transparent PNG/WEBP, background will be black
-            // Better to fill with white before drawing
-            if (formatSelect.value === 'image/jpeg') {
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-            }
-
-            // Draw original image
-            ctx.drawImage(currentImage, 0, 0);
-
-            // Get format and quality
+        // Allow UI to flush loading state
+        setTimeout(async () => {
             const format = formatSelect.value;
             const quality = parseInt(qualitySlider.value) / 100;
+            let extension = format.split('/')[1];
+            if (extension === 'jpeg') extension = 'jpg';
 
-            canvas.toBlob((blob) => {
-                convertedBlob = blob;
+            for (let i = 0; i < currentFiles.length; i++) {
+                const item = currentFiles[i];
+                const canvas = document.createElement('canvas');
+                canvas.width = item.image.width;
+                canvas.height = item.image.height;
+                const ctx = canvas.getContext('2d');
 
-                // Show download button
-                downloadBtn.classList.remove('hidden');
-
-                // Update preview with converted form
-                if (currentObjectUrl) {
-                    URL.revokeObjectURL(currentObjectUrl);
+                // If converting to jpeg, fill white background to resolve transparency issues
+                if (format === 'image/jpeg') {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
                 }
-                currentObjectUrl = URL.createObjectURL(blob);
-                previewImage.src = currentObjectUrl;
+                ctx.drawImage(item.image, 0, 0);
 
-                // Update size to new size
-                originalSize.textContent = `New Size: ${formatBytes(blob.size)}`;
+                // Convert using a Promise wrapper to work nicely with await
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, format, quality));
 
-                // Reset convert button
-                convertBtn.classList.remove('loading');
-                convertBtn.innerHTML = '<i class="ri-loop-right-line"></i> Convert Again';
+                // Unique name strategy if batching duplicates
+                const newFileName = `${item.originalName}_converted.${extension}`;
 
-            }, format, quality);
+                convertedBlobs.push({ blob, newFileName });
+                currentObjectUrls.push(URL.createObjectURL(blob));
+            }
 
-        }, 50); // Small delay for UI update
+            // Update UI after logic
+            downloadBtn.classList.remove('hidden');
+
+            if (convertedBlobs.length > 1) {
+                downloadBtn.innerHTML = '<i class="ri-download-2-line"></i> Download ZIP';
+            } else {
+                downloadBtn.innerHTML = '<i class="ri-download-2-line"></i> Download';
+            }
+
+            convertBtn.classList.remove('loading');
+            convertBtn.innerHTML = '<i class="ri-loop-right-line"></i> Convert Again';
+
+            const totalNewSize = convertedBlobs.reduce((acc, b) => acc + b.blob.size, 0);
+            originalDimensions.textContent = `New Total: ${formatBytes(totalNewSize)}`;
+
+        }, 50);
     }
 
-    async function downloadConvertedImage() {
-        if (!convertedBlob) return;
+    async function downloadConvertedImages() {
+        if (convertedBlobs.length === 0) return;
 
-        let extension = formatSelect.value.split('/')[1];
-        if (extension === 'jpeg') extension = 'jpg';
+        if (convertedBlobs.length === 1) {
+            // SINGLE FILE DOWNLOAD logic with File API
+            const { blob, newFileName } = convertedBlobs[0];
 
-        // Get original filename without extension
-        let originalName = 'image';
-        if (originalFile && originalFile.name) {
-            const lastDot = originalFile.name.lastIndexOf('.');
-            originalName = lastDot !== -1 ? originalFile.name.substring(0, lastDot) : originalFile.name;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = newFileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // Jeda sedikit sebelum revoke URL agar browser sempat memulai proses download
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 1000);
+
+            alert(`Yeay! ${newFileName} berhasil diproses dan diunduh!`);
+        } else {
+            // MULTIPLE FILES DOWNLOAD logic via JSZip
+            downloadBtn.classList.add('loading');
+            downloadBtn.innerHTML = '<i class="ri-loader-4-line"></i> Zipping...';
+
+            setTimeout(async () => {
+                try {
+                    const zip = new JSZip();
+                    convertedBlobs.forEach(item => {
+                        zip.file(item.newFileName, item.blob);
+                    });
+
+                    const zipBlob = await zip.generateAsync({ type: 'blob' });
+                    const zipName = 'Go_Converter_Images.zip';
+
+                    const url = URL.createObjectURL(zipBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = zipName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+
+                    setTimeout(() => {
+                        URL.revokeObjectURL(url);
+                    }, 1000);
+
+                    alert(`Yeay! ${zipName} berhasil diproses dan diunduh!`);
+
+                } catch (error) {
+                    console.error("Error creating ZIP", error);
+                    alert("Terjadi kesalahan saat memproses file ZIP.");
+                }
+
+                downloadBtn.classList.remove('loading');
+                downloadBtn.innerHTML = '<i class="ri-download-2-line"></i> Download ZIP';
+            }, 50);
         }
-
-        const newFileName = `${originalName}_converted.${extension}`;
-
-        try {
-            // Gunakan File System Access API agar muncul dialog "Save As" (pilih folder & nama)
-            if (window.showSaveFilePicker) {
-                const options = {
-                    suggestedName: newFileName,
-                    types: [{
-                        description: 'Image file',
-                        accept: {
-                            [formatSelect.value]: [`.${extension}`],
-                        },
-                    }],
-                };
-
-                // Minta user memilih tempat penyimpanan
-                const handle = await window.showSaveFilePicker(options);
-                const writable = await handle.createWritable();
-                await writable.write(convertedBlob);
-                await writable.close();
-                // Jika sukses menyimpan melalui dialog, fungsi selesai
-                alert(`Yeay! Gambar berhasil disimpan sebagai: ${newFileName}`);
-                return;
-            }
-        } catch (err) {
-            // Jika user klik "Cancel" di dialog save, batalkan
-            if (err.name === 'AbortError') return;
-            console.error('File Picker API error:', err);
-        }
-
-        // Fallback untuk browser yang belum mendukung fitur Save As (mungkin Firefox atau sistem keamanan tertentu)
-        const downloadLink = document.createElement('a');
-        downloadLink.href = currentObjectUrl;
-        downloadLink.download = newFileName;
-
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-
-        // Show notification to user that the file is downloading as fallback
-        alert(`Gambar telah otomatis diunduh ke folder "Downloads" dengan nama:\n${newFileName}`);
     }
 
     function resetWorkspace() {
         // Clear state
-        currentImage = null;
-        originalFile = null;
-        convertedBlob = null;
+        currentFiles = [];
+        convertedBlobs = [];
+        currentObjectUrls.forEach(url => URL.revokeObjectURL(url));
+        currentObjectUrls = [];
 
-        if (currentObjectUrl) {
-            URL.revokeObjectURL(currentObjectUrl);
-            currentObjectUrl = null;
-        }
-
-        previewImage.src = '';
+        previewGallery.innerHTML = '';
         fileInput.value = '';
 
         // Reset UI
         uploadArea.classList.remove('hidden');
         workspace.classList.add('hidden');
         downloadBtn.classList.add('hidden');
-        convertBtn.innerHTML = '<i class="ri-loop-right-line"></i> Convert Image';
+        convertBtn.innerHTML = '<i class="ri-loop-right-line"></i> Convert';
 
         // Reset selectors
         formatSelect.value = 'image/jpeg';
         qualitySlider.value = 80;
         qualityValue.textContent = '80%';
         qualityGroup.classList.remove('hidden');
+        originalSize.textContent = `Files: 0/10`;
+        originalDimensions.textContent = `Selected`;
     }
 
     function hideDownloadBtn() {
         downloadBtn.classList.add('hidden');
-        convertBtn.innerHTML = '<i class="ri-loop-right-line"></i> Convert Image';
+        convertBtn.innerHTML = currentFiles.length > 1 ? '<i class="ri-loop-right-line"></i> Convert Images' : '<i class="ri-loop-right-line"></i> Convert Image';
     }
 
     // Helper: Format bytes to KB/MB
