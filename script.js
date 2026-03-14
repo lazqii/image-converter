@@ -91,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         newFiles.forEach(file => {
-            const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif', 'image/bmp', 'image/x-icon'];
+            const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
             if (!validTypes.includes(file.type)) return;
 
             const reader = new FileReader();
